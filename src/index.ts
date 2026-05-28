@@ -4,9 +4,11 @@
  * An OpenClaw plugin that forces the agent to try completely different strategies
  * when tool execution fails (especially the `exec` tool).
  *
- * Standard OpenClaw plugin entry point.
- * Loaded automatically when the plugin is enabled via `openclaw plugins install`.
+ * Uses the official OpenClaw Plugin SDK.
  */
+
+import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 
 export interface StrategyPivotConfig {
   /** Tools to monitor for failures. Default: ['exec'] */
@@ -19,7 +21,7 @@ export interface StrategyPivotConfig {
   minFailuresBeforePivot?: number;
 }
 
-const DEFAULT_WATCHED_TOOLS = ['exec'];
+const DEFAULT_WATCHED_TOOLS = ["exec"];
 
 const DEFAULT_PROMPT = `【重要：策略轉換】
 剛才使用「{toolName}」執行失敗。
@@ -38,76 +40,86 @@ interface FailureTracker {
 
 const failureCount: FailureTracker = {};
 
-export default function register(api: any, config: StrategyPivotConfig = {}) {
-  const watchedTools = config.watchedTools ?? DEFAULT_WATCHED_TOOLS;
-  const promptTemplate = config.promptTemplate ?? DEFAULT_PROMPT;
-  const minFailures = config.minFailuresBeforePivot ?? 1;
+export default definePluginEntry({
+  id: "strategy-pivot",
+  name: "Strategy Pivot",
+  description:
+    "Detects tool execution failures and forces the agent to try completely different strategies instead of retrying the same approach.",
 
-  api.on('after_tool_call', async (context: any) => {
-    const { toolName, error, result } = context;
+  register(api: OpenClawPluginApi, config: StrategyPivotConfig = {}) {
+    const watchedTools = config.watchedTools ?? DEFAULT_WATCHED_TOOLS;
+    const promptTemplate = config.promptTemplate ?? DEFAULT_PROMPT;
+    const minFailures = config.minFailuresBeforePivot ?? 1;
 
-    // Only care about watched tools
-    if (!watchedTools.includes(toolName)) {
-      return;
-    }
+    api.on("after_tool_call", async (context: any) => {
+      const { toolName, error, result } = context;
 
-    const hasError = !!error || isExecFailure(result);
-
-    if (!hasError) {
-      // Reset failure count on success
-      failureCount[toolName] = 0;
-      return;
-    }
-
-    // Increment failure count
-    failureCount[toolName] = (failureCount[toolName] || 0) + 1;
-
-    if (failureCount[toolName] < minFailures) {
-      return;
-    }
-
-    const errorMessage = extractErrorMessage(error, result);
-
-    // Build the pivot prompt
-    const message = promptTemplate
-      .replace('{toolName}', toolName)
-      .replace('{error}', errorMessage)
-      .replace('{result}', safeStringify(result));
-
-    // Inject the guidance message into the conversation
-    try {
-      if (typeof api.appendMessage === 'function') {
-        await api.appendMessage({
-          role: 'user',
-          content: message,
-        });
-      } else if (context.messages && Array.isArray(context.messages)) {
-        context.messages.push({
-          role: 'user',
-          content: message,
-        });
-      } else {
-        console.warn('[strategy-pivot] Could not find a way to inject message. Please check OpenClaw plugin API version.');
+      if (!watchedTools.includes(toolName)) {
+        return;
       }
-    } catch (e) {
-      console.error('[strategy-pivot] Failed to inject pivot message:', e);
-    }
 
-    // Reset counter after injecting to avoid spamming every turn
-    failureCount[toolName] = 0;
-  });
+      const hasError = !!error || isExecFailure(result);
 
-  console.log('[strategy-pivot] Plugin registered successfully. Watching tools:', watchedTools);
-}
+      if (!hasError) {
+        failureCount[toolName] = 0;
+        return;
+      }
+
+      failureCount[toolName] = (failureCount[toolName] || 0) + 1;
+
+      if (failureCount[toolName] < minFailures) {
+        return;
+      }
+
+      const errorMessage = extractErrorMessage(error, result);
+
+      const message = promptTemplate
+        .replace("{toolName}", toolName)
+        .replace("{error}", errorMessage)
+        .replace("{result}", safeStringify(result));
+
+      try {
+        // Note: appendMessage may not be on the strict typed interface yet.
+        // We fall back to context mutation if needed.
+        const apiAny = api as any;
+
+        if (typeof apiAny.appendMessage === "function") {
+          await apiAny.appendMessage({
+            role: "user",
+            content: message,
+          });
+        } else if (context.messages && Array.isArray(context.messages)) {
+          context.messages.push({
+            role: "user",
+            content: message,
+          });
+        } else {
+          console.warn(
+            "[strategy-pivot] Could not find a way to inject message. API may have changed."
+          );
+        }
+      } catch (e) {
+        console.error("[strategy-pivot] Failed to inject pivot message:", e);
+      }
+
+      failureCount[toolName] = 0;
+    });
+
+    console.log(
+      "[strategy-pivot] Plugin registered. Watching tools:",
+      watchedTools
+    );
+  },
+});
 
 function isExecFailure(result: any): boolean {
   if (!result) return false;
 
-  if (typeof result === 'object' && result.exitCode != null && result.exitCode !== 0) {
+  if (typeof result === "object" && result.exitCode != null && result.exitCode !== 0) {
     return true;
   }
 
-  if (typeof result === 'string' && /exit code|non-zero|failed|error/i.test(result)) {
+  if (typeof result === "string" && /exit code|non-zero|failed|error/i.test(result)) {
     return true;
   }
 
@@ -116,17 +128,17 @@ function isExecFailure(result: any): boolean {
 
 function extractErrorMessage(error: any, result: any): string {
   if (error) {
-    return typeof error === 'string' ? error : error.message || JSON.stringify(error);
+    return typeof error === "string" ? error : error.message || JSON.stringify(error);
   }
 
   if (result) {
-    if (typeof result === 'string') return result;
+    if (typeof result === "string") return result;
     if (result.stderr) return result.stderr;
     if (result.error) return result.error;
     return JSON.stringify(result, null, 2);
   }
 
-  return 'Unknown error';
+  return "Unknown error";
 }
 
 function safeStringify(obj: any): string {

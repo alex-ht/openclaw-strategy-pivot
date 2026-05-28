@@ -28,8 +28,12 @@
     "url": "https://github.com/alex-ht/openclaw-strategy-pivot/issues"
   },
   "homepage": "https://github.com/alex-ht/openclaw-strategy-pivot#readme",
+  "peerDependencies": {
+    "openclaw": ">=2026.0"
+  },
   "devDependencies": {
     "@types/node": "^22.19.19",
+    "openclaw": "^2026.5",
     "typescript": "^5.8.0"
   }
 }
