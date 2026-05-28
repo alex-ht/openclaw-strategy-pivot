@@ -1,0 +1,34 @@
+{
+  "name": "openclaw-strategy-pivot",
+  "version": "0.1.0",
+  "description": "OpenClaw plugin that detects tool execution failures and forces the agent to try completely different strategies.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "openclaw",
+    "openclaw-plugin",
+    "hook",
+    "error-recovery",
+    "agent",
+    "strategy"
+  ],
+  "author": "alex-ht",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alex-ht/openclaw-strategy-pivot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/alex-ht/openclaw-strategy-pivot/issues"
+  },
+  "homepage": "https://github.com/alex-ht/openclaw-strategy-pivot#readme",
+  "devDependencies": {
+    "@types/node": "^22.19.19",
+    "typescript": "^5.8.0"
+  }
+}
