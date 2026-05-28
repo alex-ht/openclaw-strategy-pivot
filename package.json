@@ -13,6 +13,7 @@
     "openclaw",
     "openclaw-plugin",
     "hook",
+    "after-tool-call",
     "error-recovery",
     "agent",
     "strategy"

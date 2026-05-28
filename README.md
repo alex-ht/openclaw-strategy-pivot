@@ -2,63 +2,84 @@
 
 An OpenClaw plugin that detects tool execution failures and **forces the agent to abandon its current approach** by injecting a strong guidance prompt.
 
-When a tool (especially `exec`) fails, instead of letting the agent keep retrying similar methods, this plugin injects a clear instruction telling the agent to try a **completely different strategy**.
+When a watched tool (especially `exec`) fails, instead of letting the agent keep retrying similar methods, this plugin injects a clear instruction telling the agent to try a **completely different strategy**.
 
 ## Features
 
-- Detects tool execution errors via `after_tool_call` hook
-- Supports filtering by specific tool names (e.g. only `exec`, or `exec` + `web_search`)
-- Injects a strong, configurable prompt that discourages retrying the same approach
-- Easy to customize the failure message
+- Listens to the `after_tool_call` hook
+- Monitors specific tools (default: `exec`)
+- Tracks consecutive failures
+- Injects a strong, configurable prompt that discourages repeating the same approach
+- Fully configurable via `openclaw.plugin.json` schema
 
-## Installation
+## Installation via Git (Recommended)
+
+This plugin is designed to be installed directly from GitHub:
 
 ```bash
-# Coming soon - will be publishable to ClawHub
+openclaw plugins install git:https://github.com/alex-ht/openclaw-strategy-pivot
 ```
 
-For now, you can load it locally in your OpenClaw configuration.
+After installation, restart the gateway:
+
+```bash
+openclaw gateway restart
+```
+
+### Alternative: Manual Git Installation
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/alex-ht/openclaw-strategy-pivot.git
+cd openclaw-strategy-pivot
+
+# 2. Install dependencies and build
+npm install
+npm run build
+
+# 3. Install the plugin from local path
+openclaw plugins install .
+
+# 4. Restart gateway
+openclaw gateway restart
+```
 
 ## Configuration
 
-Create a plugin configuration (example):
+You can configure the plugin when enabling it or through OpenClaw's plugin configuration system.
 
-```ts
-// In your OpenClaw plugin registration
-import strategyPivot from 'openclaw-strategy-pivot';
+Example configuration:
 
-strategyPivot.register(api, {
-  // Tools to monitor (default: ['exec'])
-  watchedTools: ['exec', 'shell', 'run_command'],
-
-  // Custom prompt template (optional)
-  promptTemplate: `【策略轉換提示】
-剛才使用「{toolName}」執行失敗，錯誤如下：
-{error}
-
-請不要再嘗試類似或微調相同的方法。
-請重新思考問題的本質，改用**完全不同的策略或工具**來達成目標。
-請先說明你接下來打算使用的全新方法。`,
-
-  // Minimum number of consecutive failures before triggering strong guidance (default: 1)
-  minFailuresBeforePivot: 1,
-});
+```json
+{
+  "watchedTools": ["exec"],
+  "minFailuresBeforePivot": 1,
+  "promptTemplate": "【重要：策略轉換】剛才使用「{toolName}」失敗。請改用完全不同的策略..."
+}
 ```
 
-### Default Behavior
+### Available Options
 
-If no custom `promptTemplate` is provided, the plugin uses a strong default message that emphasizes abandoning the current direction.
+| Option                    | Type     | Default     | Description |
+|---------------------------|----------|-------------|-----------|
+| `watchedTools`            | string[] | `["exec"]`  | Which tools to monitor for failures |
+| `minFailuresBeforePivot`  | number   | `1`         | How many consecutive failures before injecting the message |
+| `promptTemplate`          | string   | (strong default) | Custom message. Supports `{toolName}`, `{error}`, `{result}` placeholders |
+
+If `promptTemplate` is not provided, the plugin uses a deliberately strong default message designed to break retry loops.
 
 ## How It Works
 
-1. Listens to the `after_tool_call` plugin hook.
-2. When a watched tool fails (has `error` or non-zero exit), it checks the failure count.
-3. If conditions are met, it appends a specially crafted message to the conversation.
-4. The agent will see this message in the next reasoning turn and (ideally) switch strategies.
+1. Registers an `after_tool_call` hook
+2. When a watched tool returns an error (or non-zero exit code), increments a per-tool failure counter
+3. Once the failure count reaches `minFailuresBeforePivot`, injects the pivot guidance as a user message
+4. Resets the counter after injection to avoid flooding the conversation
 
-## Recommended Prompt Philosophy
+## Recommended Use Cases
 
-The injected prompt is deliberately strong because LLMs often stubbornly retry similar approaches even after failure. The goal is to break the loop by explicitly forbidding "similar methods."
+- Agents that get stuck in loops when shell/exec commands keep failing
+- Situations where the agent is overly attached to one approach
+- Complex debugging or exploration tasks where strategic pivoting is valuable
 
 ## Development
 
@@ -66,17 +87,6 @@ The injected prompt is deliberately strong because LLMs often stubbornly retry s
 npm install
 npm run build
 ```
-
-## Roadmap
-
-- [ ] Publish to ClawHub
-- [ ] Support failure count tracking across sessions
-- [ ] Add `before_tool_call` pre-blocking capability
-- [ ] Better integration with OpenClaw's official plugin system
-
-## Contributing
-
-Issues and PRs are welcome, especially around prompt engineering for better strategic pivots.
 
 ## License
 

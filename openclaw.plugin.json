@@ -1,0 +1,30 @@
+{
+  "id": "strategy-pivot",
+  "name": "Strategy Pivot",
+  "version": "0.1.0",
+  "description": "Detects tool execution failures (especially exec) and forces the agent to abandon the current approach by injecting a strong guidance prompt to try completely different strategies.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "watchedTools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "default": ["exec"],
+        "description": "List of tool names to monitor for failures. Default: ['exec']"
+      },
+      "minFailuresBeforePivot": {
+        "type": "number",
+        "default": 1,
+        "minimum": 1,
+        "description": "Number of consecutive failures on the same tool before injecting the pivot message"
+      },
+      "promptTemplate": {
+        "type": "string",
+        "description": "Custom prompt template. Use {toolName}, {error}, and {result} as placeholders."
+      }
+    }
+  }
+}

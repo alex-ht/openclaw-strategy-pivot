@@ -2,10 +2,13 @@
  * openclaw-strategy-pivot
  *
  * An OpenClaw plugin that forces the agent to try completely different strategies
- * when tool execution fails (especially exec/shell tools).
+ * when tool execution fails (especially the `exec` tool).
+ *
+ * Standard OpenClaw plugin entry point.
+ * Loaded automatically when the plugin is enabled via `openclaw plugins install`.
  */
 
-export interface StrategyPivotOptions {
+export interface StrategyPivotConfig {
   /** Tools to monitor for failures. Default: ['exec'] */
   watchedTools?: string[];
 
@@ -35,10 +38,10 @@ interface FailureTracker {
 
 const failureCount: FailureTracker = {};
 
-export default function register(api: any, options: StrategyPivotOptions = {}) {
-  const watchedTools = options.watchedTools ?? DEFAULT_WATCHED_TOOLS;
-  const promptTemplate = options.promptTemplate ?? DEFAULT_PROMPT;
-  const minFailures = options.minFailuresBeforePivot ?? 1;
+export default function register(api: any, config: StrategyPivotConfig = {}) {
+  const watchedTools = config.watchedTools ?? DEFAULT_WATCHED_TOOLS;
+  const promptTemplate = config.promptTemplate ?? DEFAULT_PROMPT;
+  const minFailures = config.minFailuresBeforePivot ?? 1;
 
   api.on('after_tool_call', async (context: any) => {
     const { toolName, error, result } = context;
@@ -72,11 +75,6 @@ export default function register(api: any, options: StrategyPivotOptions = {}) {
       .replace('{result}', safeStringify(result));
 
     // Inject the guidance message into the conversation
-    // Note: The exact API may vary depending on OpenClaw version.
-    // Common patterns include:
-    // - context.messages?.push(...)
-    // - api.appendMessage(...)
-    // - event.messages.push(...)
     try {
       if (typeof api.appendMessage === 'function') {
         await api.appendMessage({
@@ -89,27 +87,30 @@ export default function register(api: any, options: StrategyPivotOptions = {}) {
           content: message,
         });
       } else {
-        console.warn('[strategy-pivot] Could not find a way to inject message. Please check OpenClaw plugin API.');
+        console.warn('[strategy-pivot] Could not find a way to inject message. Please check OpenClaw plugin API version.');
       }
     } catch (e) {
       console.error('[strategy-pivot] Failed to inject pivot message:', e);
     }
 
-    // Optional: reset counter after injecting (so it doesn't spam every turn)
+    // Reset counter after injecting to avoid spamming every turn
     failureCount[toolName] = 0;
   });
 
-  console.log('[strategy-pivot] Plugin registered. Watching tools:', watchedTools);
+  console.log('[strategy-pivot] Plugin registered successfully. Watching tools:', watchedTools);
 }
 
 function isExecFailure(result: any): boolean {
   if (!result) return false;
+
   if (typeof result === 'object' && result.exitCode != null && result.exitCode !== 0) {
     return true;
   }
+
   if (typeof result === 'string' && /exit code|non-zero|failed|error/i.test(result)) {
     return true;
   }
+
   return false;
 }
 
@@ -117,12 +118,14 @@ function extractErrorMessage(error: any, result: any): string {
   if (error) {
     return typeof error === 'string' ? error : error.message || JSON.stringify(error);
   }
+
   if (result) {
     if (typeof result === 'string') return result;
     if (result.stderr) return result.stderr;
     if (result.error) return result.error;
     return JSON.stringify(result, null, 2);
   }
+
   return 'Unknown error';
 }
 
